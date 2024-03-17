@@ -32,8 +32,7 @@ class PositionEstimator:
         self.last_pos_y = 0.
 
         # timestamps for calculating time difference
-        self.last_run_time = time.time()
-        self.last_update_time = time.time()
+        self.last_time = time.time()
         self.last_gps_time = time.time()
 
         self.start_time = time.time()
@@ -43,27 +42,12 @@ class PositionEstimator:
         # write column headers
         self.file.write('(est_x, est_y), (act_x, act_y), timestamp\n')
 
-    def update(self):
-        # runs as frequently as possible; update stored position using stored velocity and time difference
 
-        # update current time to find time difference since last update
-        curr_time = time.time()
-        dt = curr_time - self.last_update_time
-
-        # update stored position
-        self.x += self.vx * dt
-        self.y += self.vy * dt
-
-        # update time for next update
-        self.last_update_time = curr_time
-
-
-
-    def run_threaded(self, acl_x: float, acl_y: float, gyr_x: float, pos_x: float, pos_y: float):
-        # updates stored velocity and orientation using accelerometer and gyroscope readings
+    def run(self, acl_x: float, acl_y: float, gyr_x: float, pos_x: float, pos_y: float):
+        # updates stored velocity, orientation, and position using accelerometer and gyroscope readings
 
         curr_time = time.time()
-        dt = curr_time - self.last_run_time
+        dt = curr_time - self.last_time
 
         # update orientation
         self.yaw += float(gyr_x) * dt
@@ -76,8 +60,12 @@ class PositionEstimator:
         self.vx += ax * dt
         self.vy += ay * dt
 
+        # update stored position
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+
         # update time for next run
-        self.last_run_time = curr_time
+        self.last_time = curr_time
 
         # checks if the pos/x and pos/y from gps have recently been updated
         # if true, reset stored position and velocity to match actual values
@@ -90,15 +78,12 @@ class PositionEstimator:
             pos_y = float(pos_y)
             self.x = pos_x
             self.y = pos_y
-            self.z = 0
             # reset velocity based on gps delta
             self.vx = (pos_x - self.last_pos_x) / gps_dt
             self.vy = (pos_y - self.last_pos_y) / gps_dt
-            self.vz = 0
-            # reset yaw
-            a_mag = math.sqrt((pos_x - self.last_pos_x)**2 + (pos_y - self.last_pos_y)**2)
-            b_mag = 1
-            self.yaw = math.acos((pos_y - self.last_pos_y) / (a_mag * b_mag))
+            # reset yaw (0-angle is facing east)
+            mag = math.sqrt((pos_x - self.last_pos_x)**2 + (pos_y - self.last_pos_y)**2)
+            self.yaw = math.acos((pos_x - self.last_pos_x) / (mag))
             # update last gps time to current
             self.last_gps_time = curr_time
 
@@ -112,14 +97,6 @@ class PositionEstimator:
         return self.x, self.y, self.yaw
 
 
-    def run(self, acl_x: float, acl_y: float, gyr_x: float, pos_x: float, pos_y: float):
-        # essentially a combination of update and run_threaded, for testing purposes in __main__
-
-        self.update()
-        self.run_threaded(acl_x, acl_y, gyr_x, pos_x, pos_y)
-
-        return self.x, self.y, self.yaw
-
 if __name__ == "__main__":
     # outputs position estimates without gps signal; very prone to drifting away because of the lack of gps/velocity/position resets,
     # but should still output an accurate orientation
@@ -131,6 +108,6 @@ if __name__ == "__main__":
     print('estimator set')
     while True:
         imu_data = p.run()
-        data = est.run(imu_data[0], imu_data[1], imu_data[2], imu_data[3], imu_data[4], imu_data[5], 0, 0)
+        data = est.run(imu_data[0], imu_data[1],imu_data[3], 0, 0)
         print(data)
         time.sleep(0.05)
