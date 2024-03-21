@@ -50,7 +50,8 @@ class PositionEstimator:
         dt = curr_time - self.last_time
 
         # update orientation
-        self.yaw += float(gyr_x) * dt
+        # also convert from radians to degrees
+        self.yaw += float(gyr_x) * 180/math.pi * dt
 
         # rotate accerlation vectors
         ax = float(acl_x) * math.cos(-self.yaw) - float(acl_y) * math.sin(-self.yaw)
@@ -83,7 +84,13 @@ class PositionEstimator:
             self.vy = (pos_y - self.last_pos_y) / gps_dt
             # reset yaw (0-angle is facing east)
             mag = math.sqrt((pos_x - self.last_pos_x)**2 + (pos_y - self.last_pos_y)**2)
-            self.yaw = math.acos((pos_x - self.last_pos_x) / (mag))
+            self.yaw = math.acos(math.abs(pos_x - self.last_pos_x) / (mag))
+            # if y-component is negative, then car is facing south; make angle negative as well
+            if (pos_y - self.last_pos_y) < 0:
+                self.yaw *= -1
+            # if x-component is negative, then angle calculation faces west instead of null at east; subtract from 180 to compensate
+            if (pos_x - self.last_pos_x) < 0:
+                self.yaw = 180 - self.yaw
             # update last gps time to current
             self.last_gps_time = curr_time
 
