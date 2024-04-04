@@ -276,6 +276,12 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     plot = PathPlot(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET)
     V.add(plot, inputs=['map/image', 'path'], outputs=['map/image'])
 
+    ## STUFF ADDED FOR DSC190
+    from position_estimator import PositionEstimator
+    position_est = PositionEstimator()
+    V.add(position_est, inputs=['imu/acl_x', 'imu/acl_y', 'imu/gyr_x', 'pos/x', 'pos/y'], outputs=['est_pos/x', 'est_pos/y'], threaded=False)
+    ##
+
     # This will use path and current position to output cross track error
     cte = CTE(look_ahead=cfg.PATH_LOOK_AHEAD, look_behind=cfg.PATH_LOOK_BEHIND, num_pts=cfg.PATH_SEARCH_LENGTH)
     V.add(cte, inputs=['path', 'pos/x', 'pos/y', 'cte/closest_pt'], outputs=['cte/error', 'cte/closest_pt'], run_condition='run_pilot')
@@ -434,13 +440,6 @@ def drive(cfg, use_joystick=False, camera_type='single'):
 
     loc_plot = PlotCircle(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET, color = "green")
     V.add(loc_plot, inputs=['map/image', 'pos/x', 'pos/y'], outputs=['map/image'], run_condition='run_user')
-
-
-    ## STUFF ADDED FOR DSC190
-    from position_estimator import PositionEstimator
-    position_est = PositionEstimator()
-    V.add(position_est, inputs=['imu/acl_x', 'imu/acl_y', 'imu/gyr_x', 'pos/x', 'pos/y'], outputs=['est_pos/x', 'est_pos/y'], threaded=False)
-    ##
 
     V.start(rate_hz=cfg.DRIVE_LOOP_HZ,
         max_loop_count=cfg.MAX_LOOPS)
