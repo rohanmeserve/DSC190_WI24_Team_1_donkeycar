@@ -120,8 +120,8 @@ class IMU:
                     gyroTs = gyroValues.getTimestampDevice()
                     if self.baseTs is None:
                         self.baseTs = acceleroTs if acceleroTs < gyroTs else gyroTs
-                    acceleroTs = self.timeDeltaToMilliS(acceleroTs - self.baseTs)
-                    gyroTs = self.timeDeltaToMilliS(gyroTs - self.baseTs)
+                    acceleroTs = (acceleroTs - self.baseTs).total_seconds()*1000
+                    gyroTs = (gyroTs - self.baseTs).total_seconds()*1000
 
                     imuF = "{:.06f}"
                     tsF  = "{:.03f}"
