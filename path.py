@@ -510,16 +510,22 @@ class PurePursuit_Pilot(object):
             sol_y2 = (- D * dx - abs(dy) * math.sqrt(discrim)) / dr**2
 
             # find distance between each solution and next point; use one with smallest dist (furthest along point)
-            dist_1 = 
+            dist_1 = dist(sol_x1, sol_y1, path[closest_pt_idx + i + 1][0], path[closest_pt_idx + i + 1][0])
+            dist_2 = dist(sol_x2, sol_y2, path[closest_pt_idx + i + 1][0], path[closest_pt_idx + i + 1][0])
 
-            goal_point = 
+            # use solution with lower dist as goal point
+            if dist_1 < dist_2:
+                goal_point = [sol_x1, sol_y1]
+            else:
+                goal_point = [sol_x2, sol_y2]
+
         else:
             # closest point is not within ld circle; use closest as goal point
             goal_point = path[closest_pt_idx]
         # plug goal point into formula for steering angle
 
         # set steering angle
-        steer = 
+        steer = 2*(goal_point[0] - pos_x)/(self.ld**2)
         ### END STEERING CALCULATION
 
         if self.use_constant_throttle or throttles is None or closest_pt_idx is None:
