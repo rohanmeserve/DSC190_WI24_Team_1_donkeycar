@@ -279,7 +279,7 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     ## STUFF ADDED FOR DSC190
     from position_estimator import PositionEstimator
     position_est = PositionEstimator()
-    V.add(position_est, inputs=['imu/acl_x', 'imu/acl_y', 'imu/gyr_x', 'pos/x', 'pos/y'], outputs=['est_pos/x', 'est_pos/y'], threaded=False)
+    V.add(position_est, inputs=['imu/acl_x', 'imu/acl_y', 'imu/gyr_z', 'pos/x', 'pos/y'], outputs=['est_pos/x', 'est_pos/y'], threaded=False)
     ##
 
     # This will use path and current position to output cross track error
