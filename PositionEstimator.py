@@ -27,6 +27,13 @@ class PositionEstimator:
         self.vy = 0.
         self.yaw = 0.
 
+        ### gps-vel raw proj ###
+        self.px = 0
+        self.py = 0
+        self.pvx = 0
+        self.pvy = 0
+        ### end ###
+
         # last gps values received
         self.last_pos_x = 0.
         self.last_pos_y = 0.
@@ -51,11 +58,23 @@ class PositionEstimator:
 
         # update orientation
         # also convert from radians to degrees
-        self.yaw += float(gyr_x) * 180/math.pi * dt
+        self.yaw += float(gyr_x) * dt
 
         # rotate accerlation vectors
         ax = float(acl_x) * math.cos(-self.yaw) - float(acl_y) * math.sin(-self.yaw)
         ay = float(acl_x) * math.sin(-self.yaw) - float(acl_y) * math.cos(-self.yaw)
+
+        # correct signage
+        if self.yaw > 90*(180/math.pi):
+            # facing NW, x comp is negative
+            ax *= -1
+        elif self.yaw < 0 and self.yaw < -90*(180/math.pi):
+            # facing SE, y comp is negative
+            ay *= -1
+        elif self.yaw < -90*(180/math.pi):
+            # facing SW, x and y comps are negative
+            ax *= -1
+            ay *= -1
 
         # update velocity
         self.vx += ax * dt
@@ -64,6 +83,10 @@ class PositionEstimator:
         # update stored position
         self.x += self.vx * dt
         self.y += self.vy * dt
+
+        ## update gps-vel proj position
+        self.px += self.pvx * dt
+        self.py += self.pvy * dt
 
         # update time for next run
         self.last_time = curr_time
@@ -82,6 +105,12 @@ class PositionEstimator:
             # reset velocity based on gps delta
             self.vx = (pos_x - self.last_pos_x) / gps_dt
             self.vy = (pos_y - self.last_pos_y) / gps_dt
+
+            ### gps-vel proj velocity
+            self.pvx = self.vx
+            self.pvy = self.vy
+            ###
+
             # reset yaw (0-angle is facing east)
             mag = math.sqrt((pos_x - self.last_pos_x)**2 + (pos_y - self.last_pos_y)**2)
             self.yaw = math.acos(math.abs(pos_x - self.last_pos_x) / (mag))
@@ -100,6 +129,9 @@ class PositionEstimator:
 
         # write predicted pos and last known true pos to file
         self.file.write(f'({self.x},{self.y}), ({pos_x}, {pos_y}), {curr_time - self.start_time}\n')
+
+        # (imu-adjusted x,y), (gps-vel projected x,y), (gps-raw x,y), timestamp, yaw
+        self.file.write(f'({self.x},{self.y}), ({self.px}, {self.py}), ({pos_x}, {pos_y}), {curr_time - self.start_time}, {self.yaw}\n')
 
         return self.x, self.y, self.yaw
 
