@@ -65,13 +65,13 @@ class PositionEstimator:
         ay = float(acl_x) * math.sin(-self.yaw) - float(acl_y) * math.cos(-self.yaw)
 
         # correct signage
-        if self.yaw > 90*(180/math.pi):
+        if self.yaw >= 90*(180/math.pi):
             # facing NW, x comp is negative
             ax *= -1
         elif self.yaw < 0 and self.yaw < -90*(180/math.pi):
             # facing SE, y comp is negative
             ay *= -1
-        elif self.yaw < -90*(180/math.pi):
+        elif self.yaw <= -90*(180/math.pi):
             # facing SW, x and y comps are negative
             ax *= -1
             ay *= -1
