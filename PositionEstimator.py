@@ -60,18 +60,38 @@ class PositionEstimator:
         # also convert from radians to degrees
         self.yaw += float(gyr_x) * dt
 
-        # rotate accerlation vectors
-        ax = float(acl_x) * math.cos(-self.yaw) - float(acl_y) * math.sin(-self.yaw)
-        ay = float(acl_x) * math.sin(-self.yaw) - float(acl_y) * math.cos(-self.yaw)
+        # lock yaw to -180 -> 180 frame
+        if self.yaw*(180/math.pi) > 180:
+            # move from north-facing to south-facing
+            self.yaw -= 360*math.pi/180
+        elif self.yaw*(180/math.pi) < -180:
+            # move from south-facing to north-facing
+            self.yaw += 360*(math.pi/180)
 
-        # correct signage
-        if self.yaw >= 90*(180/math.pi):
+
+        # rotate accerlation vectors; apply trig then adjust signage according to heading
+
+        if self.yaw >= 0 and self.yaw < 90*(math.pi/180):
+            # within 90 deg, no adjustment needed for trig
+            ax = float(acl_x) * math.cos(self.yaw) - float(acl_y) * math.sin(self.yaw)
+            ay = float(acl_x) * math.sin(self.yaw) - float(acl_y) * math.cos(self.yaw)
+            # facing NE, x and y comps are positive (no change)
+        elif self.yaw >= 90*(math.pi/180):
+            # exceeds 180 deg, needs adjust for trig
+            ax = float(acl_x) * math.cos(180*(math.pi/180) - self.yaw) - float(acl_y) * math.sin(180*(math.pi/180) - self.yaw)
+            ay = float(acl_x) * math.sin(180*(math.pi/180) - self.yaw) - float(acl_y) * math.cos(180*(math.pi/180) - self.yaw)
             # facing NW, x comp is negative
             ax *= -1
-        elif self.yaw < 0 and self.yaw < -90*(180/math.pi):
+        elif self.yaw < 0 and self.yaw >= -90*(math.pi/180):
+            # within 90 deg, no adjustment needed for trig
+            ax = float(acl_x) * math.cos(-self.yaw) - float(acl_y) * math.sin(-self.yaw)
+            ay = float(acl_x) * math.sin(-self.yaw) - float(acl_y) * math.cos(-self.yaw)
             # facing SE, y comp is negative
             ay *= -1
-        elif self.yaw <= -90*(180/math.pi):
+        elif self.yaw <= -90*(math.pi/180):
+            # exceeds 180 deg, needs adjust for trig
+            ax = float(acl_x) * math.cos(self.yaw + 180*(math.pi/180)) - float(acl_y) * math.sin(self.yaw + 180*(math.pi/180))
+            ay = float(acl_x) * math.sin(self.yaw + 180*(math.pi/180)) - float(acl_y) * math.cos(self.yaw + 180*(math.pi/180))
             # facing SW, x and y comps are negative
             ax *= -1
             ay *= -1
@@ -114,12 +134,12 @@ class PositionEstimator:
             # reset yaw (0-angle is facing east)
             mag = math.sqrt((pos_x - self.last_pos_x)**2 + (pos_y - self.last_pos_y)**2)
             self.yaw = math.acos(math.abs(pos_x - self.last_pos_x) / (mag))
-            # if y-component is negative, then car is facing south; make angle negative as well
-            if (pos_y - self.last_pos_y) < 0:
-                self.yaw *= -1
             # if x-component is negative, then angle calculation faces west instead of null at east; subtract from 180 to compensate
             if (pos_x - self.last_pos_x) < 0:
-                self.yaw = 180 - self.yaw
+                self.yaw = 180*(math.pi/180) - self.yaw
+            # if y-component is negative, then car is facing south; angle is negative
+            if (pos_y - self.last_pos_y) < 0:
+                self.yaw *= -1
             # update last gps time to current
             self.last_gps_time = curr_time
 
@@ -128,7 +148,7 @@ class PositionEstimator:
         self.last_pos_y = pos_y
 
         # write predicted pos and last known true pos to file
-        self.file.write(f'({self.x},{self.y}), ({pos_x}, {pos_y}), {curr_time - self.start_time}\n')
+        #self.file.write(f'({self.x},{self.y}), ({pos_x}, {pos_y}), {curr_time - self.start_time}\n')
 
         # (imu-adjusted x,y), (gps-vel projected x,y), (gps-raw x,y), timestamp, yaw
         self.file.write(f'({self.x},{self.y}), ({self.px}, {self.py}), ({pos_x}, {pos_y}), {curr_time - self.start_time}, {self.yaw}\n')
