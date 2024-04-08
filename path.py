@@ -472,8 +472,9 @@ class PurePursuit_Pilot(object):
         self.min_throttle = min_throttle if min_throttle is not None else throttle
 
         self.ld = 1.0
+        self.axel_dist = 1
 
-    def run(self, path: list, pos_x, pos_y, throttles: list, closest_pt_idx: int) -> tuple:
+    def run(self, path: list, pos_x, pos_y, heading, throttles: list, closest_pt_idx: int) -> tuple:
         ### CALCULATE STEERING
         # find dist of closest point; if within ld, find intersections; else use closest point as goal point
         #
@@ -525,7 +526,10 @@ class PurePursuit_Pilot(object):
         # plug goal point into formula for steering angle
 
         # set steering angle
-        steer = 2*(goal_point[0] - pos_x)/(self.ld**2)
+        # alpha is angle difference between current heading and heading towards goal point
+        # TODO: Need to check if calculation works in each quadrant
+        alpha = math.acos((goal_point[0] - pos_x) / math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2)) - heading
+        steer = (2*self.axel_dist*math.sin(alpha)) / self.ld
         ### END STEERING CALCULATION
 
         if self.use_constant_throttle or throttles is None or closest_pt_idx is None:
@@ -534,5 +538,5 @@ class PurePursuit_Pilot(object):
             throttle = self.min_throttle
         else:
             throttle = throttles[closest_pt_idx] * self.variable_speed_multiplier
-        logging.info(f"CTE: {cte} steer: {steer} throttle: {throttle}")
+        logging.info(f"goal: {goal_point} steer: {steer} throttle: {throttle}")
         return steer, throttle
