@@ -464,14 +464,15 @@ class PurePursuit_Pilot(object):
     def __init__(
             self,
             throttle: float,
+            lookahead_distance: float,
             use_constant_throttle: bool = False,
-            min_throttle: float = None) -> None:
+            min_throttle: float = None):
         self.throttle = throttle
         self.use_constant_throttle = use_constant_throttle
         self.variable_speed_multiplier = 1.0
         self.min_throttle = min_throttle if min_throttle is not None else throttle
 
-        self.ld = 1.0
+        self.ld = lookahead_distance
         self.axel_dist = 1
 
     def run(self, path: list, pos_x, pos_y, heading, throttles: list, closest_pt_idx: int) -> tuple:
@@ -479,58 +480,86 @@ class PurePursuit_Pilot(object):
         # find dist of closest point; if within ld, find intersections; else use closest point as goal point
         #
         goal_dist = dist(pos_x, pos_y, path[closest_pt_idx][0], path[closest_pt_idx][1])
+        #####print(f'goal dist: {goal_dist}')
         if goal_dist < self.ld:
-            def sign(num):  
-                if num >= 0:
-                    return 1
-                else:
-                    return -1
 
             # check next point along path; keep moving until furthest point within ld is found
             i = 0
-            while goal_dist < self.ld:
-                # move to next point along path
+            line_found = False
+            # TODO: optimize search for best path segment within lookahead dist
+            while not line_found:
+                # calc distance for next point
                 i += 1
-                # calc distance
-                goal_dist = dist(pos_x, pos_y, path[closest_pt_idx + i][0], path[closest_pt_idx + i][1])
+                if dist(pos_x, pos_y, path[(closest_pt_idx + i) % len(path)][0], path[(closest_pt_idx + i) % len(path)][1]) > self.ld:
+                    # if dist exceeds lookahead distance, go back one point
+                    i -= 1
+                    line_found = True
+                #####print(f'goal dist: {goal_dist}')
                 # loop terminates if dist exceeds ld; keep last valid index
+            
             # set line segment where goal point solution exists
-            a = path[closest_pt_idx + i]
-            b = path[closest_pt_idx + i + 1]
+            #####print(f'closest_idx = {closest_pt_idx}, i = {i}')
+            a = path[(closest_pt_idx + i) % len(path)]
+            b = path[(closest_pt_idx + i + 1) % len(path)]
+            #####print(f'using line ({a},{b})')
             # calculate intersection solution
-            dx = (a[0] - pos_x) - (b[0] - pos_x)
-            dy = (a[1] - pos_y) - (b[1] - pos_y)
-            dr = math.sqrt(dx**2 + dy**2)
-            D = a[0]*b[1] - b[0]*a[1]
+            dx = (b[0] - pos_x) - (a[0] - pos_x)
+            dy = (b[1] - pos_y) - (a[1] - pos_y)
+            dr = math.sqrt(dx**2 + dy**2) + 1e-5
+            D = (a[0] - pos_x)*(b[1] - pos_y) - (b[0] - pos_x)*(a[1] - pos_y)
             discrim = (self.ld**2) * (dr**2) - (D**2)
+            if discrim >= 0:
+                # solutions exist
+                #print(f'discrim: {discrim}')
+                # calculate the solutions
+                sol_x1 = (D * dy + sign(dy) * dx * math.sqrt(discrim)) / dr**2
+                sol_x2 = (D * dy - sign(dy) * dx * math.sqrt(discrim)) / dr**2
+                sol_y1 = (- D * dx + abs(dy) * math.sqrt(discrim)) / dr**2
+                sol_y2 = (- D * dx - abs(dy) * math.sqrt(discrim)) / dr**2
+                # adjust offsets
+                sol_x1 += pos_x
+                sol_x2 += pos_x
+                sol_y1 += pos_y
+                sol_y2 += pos_y
+                #####print(f'possible solutions: ({sol_x1}, {sol_y1}) and ({sol_x2}, {sol_y2})')
 
-            # calculate the solutions
-            sol_x1 = (D * dy + sign(dy) * dx * math.sqrt(discrim)) / dr**2
-            sol_x2 = (D * dy - sign(dy) * dx * math.sqrt(discrim)) / dr**2
-            sol_y1 = (- D * dx + abs(dy) * math.sqrt(discrim)) / dr**2
-            sol_y2 = (- D * dx - abs(dy) * math.sqrt(discrim)) / dr**2
+                # find distance between each solution and next point; use one with smallest dist (furthest along point)
+                dist_1 = dist(sol_x1, sol_y1, path[(closest_pt_idx + i + 1) % len(path)][0], path[(closest_pt_idx + i + 1) % len(path)][1])
+                dist_2 = dist(sol_x2, sol_y2, path[(closest_pt_idx + i + 1) % len(path)][0], path[(closest_pt_idx + i + 1) % len(path)][1])
 
-            # find distance between each solution and next point; use one with smallest dist (furthest along point)
-            dist_1 = dist(sol_x1, sol_y1, path[closest_pt_idx + i + 1][0], path[closest_pt_idx + i + 1][0])
-            dist_2 = dist(sol_x2, sol_y2, path[closest_pt_idx + i + 1][0], path[closest_pt_idx + i + 1][0])
-
-            # use solution with lower dist as goal point
-            if dist_1 < dist_2:
-                goal_point = [sol_x1, sol_y1]
+                # use solution with lower dist as goal point, but only if solution exists within bounds of line
+                if dist_1 < dist_2: #and (sol_x1 >= a[0] and sol_x1 <= b[0]) and (sol_y1 >= a[1] and sol_y1 <= b[1]):
+                    goal_point = [sol_x1, sol_y1]
+                elif dist_2 < dist_1:# and (sol_x2 >= a[0] and sol_x2 <= b[0]) and (sol_y2 >= a[1] and sol_y2 <= b[1]):
+                    goal_point = [sol_x2, sol_y2]
+                else:
+                    goal_point = path[closest_pt_idx]
             else:
-                goal_point = [sol_x2, sol_y2]
+                # no solution exists; default to closest
+                #####print(f'negative discriminant; default to closest point {path[closest_pt_idx]}')
+                goal_point = path[closest_pt_idx]
 
         else:
             # closest point is not within ld circle; use closest as goal point
-            goal_point = path[closest_pt_idx]
+            ###print(f'closest out of range; using {path[(closest_pt_idx + 1) % len(path)]} at dist {goal_dist}')
+            goal_point = path[(closest_pt_idx + 1) % len(path)]
         # plug goal point into formula for steering angle
 
         # set steering angle
         # alpha is angle difference between current heading and heading towards goal point
         # TODO: Need to check if calculation works in each quadrant
-        alpha = math.acos((goal_point[0] - pos_x) / math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2)) - heading
-        steer = (2*self.axel_dist*math.sin(alpha)) / self.ld
+        #####print(f'total angle: {math.acos((goal_point[0] - pos_x) / math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2)) * (180/math.pi)}')
+        alpha = math.acos((goal_point[0] - pos_x) / (math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2) + 1e-5)) - heading
+        # filter out extreme heading values
+        if alpha > (math.pi) or alpha < -(math.pi):
+            steer = -1 * sign(alpha) * (360*(math.pi/180) - abs(alpha))
+        else:
+            steer = alpha
+        #steer=alpha
+        #####print(f'goal point: {goal_point}')
+        #####print(f'steering angle: {steer*(180/math.pi)}')
         ### END STEERING CALCULATION
+        
 
         if self.use_constant_throttle or throttles is None or closest_pt_idx is None:
             throttle = self.throttle
@@ -538,5 +567,11 @@ class PurePursuit_Pilot(object):
             throttle = self.min_throttle
         else:
             throttle = throttles[closest_pt_idx] * self.variable_speed_multiplier
-        logging.info(f"goal: {goal_point} steer: {steer} throttle: {throttle}")
         return steer, throttle
+    
+    # TODO: remove for final version; should be in utils
+    def sign(num):  
+        if num >= 0:
+            return 1
+        else:
+            return -1
