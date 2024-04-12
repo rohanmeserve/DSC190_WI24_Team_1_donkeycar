@@ -60,41 +60,16 @@ class PositionEstimator:
         # also convert from radians to degrees
         self.yaw += float(gyr_x) * dt
 
-        # lock yaw to -180 -> 180 frame
-        if self.yaw*(180/math.pi) > 180:
-            # move from north-facing to south-facing
-            self.yaw -= 360*math.pi/180
-        elif self.yaw*(180/math.pi) < -180:
-            # move from south-facing to north-facing
+        # lock yaw to 0->360 frame
+        if self.yaw < 0:
+            # handle negative case; -1deg = 359deg
             self.yaw += 360*(math.pi/180)
+        self.yaw %= 360*(math.pi/180)
 
 
         # rotate accerlation vectors; apply trig then adjust signage according to heading
-
-        if self.yaw >= 0 and self.yaw < 90*(math.pi/180):
-            # within 90 deg, no adjustment needed for trig
-            ax = float(acl_x) * math.cos(self.yaw) - float(acl_y) * math.sin(self.yaw)
-            ay = float(acl_x) * math.sin(self.yaw) - float(acl_y) * math.cos(self.yaw)
-            # facing NE, x and y comps are positive (no change)
-        elif self.yaw >= 90*(math.pi/180):
-            # exceeds 180 deg, needs adjust for trig
-            ax = float(acl_x) * math.cos(180*(math.pi/180) - self.yaw) - float(acl_y) * math.sin(180*(math.pi/180) - self.yaw)
-            ay = float(acl_x) * math.sin(180*(math.pi/180) - self.yaw) - float(acl_y) * math.cos(180*(math.pi/180) - self.yaw)
-            # facing NW, x comp is negative
-            ax *= -1
-        elif self.yaw < 0 and self.yaw >= -90*(math.pi/180):
-            # within 90 deg, no adjustment needed for trig
-            ax = float(acl_x) * math.cos(-self.yaw) - float(acl_y) * math.sin(-self.yaw)
-            ay = float(acl_x) * math.sin(-self.yaw) - float(acl_y) * math.cos(-self.yaw)
-            # facing SE, y comp is negative
-            ay *= -1
-        elif self.yaw <= -90*(math.pi/180):
-            # exceeds 180 deg, needs adjust for trig
-            ax = float(acl_x) * math.cos(self.yaw + 180*(math.pi/180)) - float(acl_y) * math.sin(self.yaw + 180*(math.pi/180))
-            ay = float(acl_x) * math.sin(self.yaw + 180*(math.pi/180)) - float(acl_y) * math.cos(self.yaw + 180*(math.pi/180))
-            # facing SW, x and y comps are negative
-            ax *= -1
-            ay *= -1
+        ax = float(acl_x) * math.cos(self.yaw) - float(acl_y) * math.sin(self.yaw)
+        ay = float(acl_x) * math.sin(self.yaw) - float(acl_y) * math.cos(self.yaw)
 
         # update velocity
         self.vx += ax * dt
@@ -131,16 +106,21 @@ class PositionEstimator:
             self.pvy = self.vy
             ###
 
-            # reset yaw (0-angle is facing east)
-            mag = math.sqrt((pos_x - self.last_pos_x)**2 + (pos_y - self.last_pos_y)**2)
-            self.yaw = math.acos(math.abs(pos_x - self.last_pos_x) / (mag))
-            # if x-component is negative, then angle calculation faces west instead of null at east; subtract from 180 to compensate
-            if (pos_x - self.last_pos_x) < 0:
-                self.yaw = 180*(math.pi/180) - self.yaw
-            # if y-component is negative, then car is facing south; angle is negative
-            if (pos_y - self.last_pos_y) < 0:
-                self.yaw *= -1
-            # update last gps time to current
+            # reset yaw
+            if (pos_x - self.last_pos_x) > 0 and (pos_y - self.last_pos_y) > 0:
+                # NE, 0 -> 90
+                self.yaw = abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y)))
+            elif (pos_x - self.last_pos_x) < 0  and (pos_y - self.last_pos_y) > 0:
+                # NW, 90 - 180
+                self.yaw = 180*(math.pi/180) - abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y)))
+            elif (pos_x - self.last_pos_x) < 0 and (pos_y - self.last_pos_y) < 0:
+                # SW, 180 -> 270
+                self.yaw = abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y))) + 180*(math.pi/180)
+            else:
+                # SE, 270 -> 360
+                self.yaw = 360*(math.pi*180) - abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y)))
+            # lock to 0 -> 360 frame
+            self.yaw %= 2*math.pi
             self.last_gps_time = curr_time
 
         # updates last known gps position to current gps position
