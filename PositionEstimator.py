@@ -118,7 +118,7 @@ class PositionEstimator:
                 self.yaw = abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y))) + 180*(math.pi/180)
             else:
                 # SE, 270 -> 360
-                self.yaw = 360*(math.pi*180) - abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y)))
+                self.yaw = 360*(math.pi/180) - abs(math.atan((pos_x - self.last_pos_x) / (pos_y - self.last_pos_y)))
             # lock to 0 -> 360 frame
             self.yaw %= 2*math.pi
             self.last_gps_time = curr_time
