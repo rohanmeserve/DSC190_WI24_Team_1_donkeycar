@@ -546,15 +546,15 @@ class PurePursuit_Pilot(object):
         # plug goal point into formula for steering angle
 
         # set steering angle
-        # alpha is angle difference between current heading and heading towards goal point
-        # TODO: Need to check if calculation works in each quadrant
-        #####print(f'total angle: {math.acos((goal_point[0] - pos_x) / math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2)) * (180/math.pi)}')
-        alpha = math.acos((goal_point[0] - pos_x) / (math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2) + 1e-5)) - heading
-        # filter out extreme heading values
-        if alpha > (math.pi) or alpha < -(math.pi):
-            steer = -1 * sign(alpha) * (360*(math.pi/180) - abs(alpha))
+        # alpha is angle between current position and goal point; steer is how much heading needs to change (generally difference between heading and alpha)
+        alpha = math.acos((goal_point[0] - pos_x) / (math.sqrt((goal_point[0] - pos_x)**2 + (goal_point[1] - pos_y)**2) + 1e-5))
+        # TODO: Figure out why the south-facing adjustment works
+        if pos_y - goal_point[1] > 0:
+            # south-facing
+            steer = abs(heading + (alpha - heading - 2*math.pi)) - heading
         else:
-            steer = alpha
+            # north-facing
+            steer = alpha - heading
         #steer=alpha
         #####print(f'goal point: {goal_point}')
         #####print(f'steering angle: {steer*(180/math.pi)}')
