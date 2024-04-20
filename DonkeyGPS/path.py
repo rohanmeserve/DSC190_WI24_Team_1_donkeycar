@@ -475,6 +475,9 @@ class PurePursuit_Pilot(object):
         self.ld = lookahead_distance
         self.axel_dist = 1
 
+        self.min_angle = -25*(math.pi/180)
+        self.max_angle = 25*(math.pi/180)
+
     def run(self, path: list, pos_x, pos_y, heading, throttles: list, closest_pt_idx: int) -> tuple:
         ### CALCULATE STEERING
         # find dist of closest point; if within ld, find intersections; else use closest point as goal point
@@ -558,6 +561,15 @@ class PurePursuit_Pilot(object):
         #steer=alpha
         #####print(f'goal point: {goal_point}')
         #####print(f'steering angle: {steer*(180/math.pi)}')
+
+        # convert steering value to be on scale from -1 to 1
+        steer /= self.max_angle
+        # if steering is outstide min/max steering angle, limit it
+        if steer > 1:
+            steer = 1
+        elif steer < -1:
+            steer = -1
+
         ### END STEERING CALCULATION
         
 

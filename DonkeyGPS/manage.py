@@ -276,20 +276,23 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     plot = PathPlot(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET)
     V.add(plot, inputs=['map/image', 'path'], outputs=['map/image'])
 
-    ## STUFF ADDED FOR DSC190
+    ### DSC190 SIMPLE IMU/GPS FUSION - POSITION ESTIMATOR ###
     from position_estimator import PositionEstimator
     position_est = PositionEstimator()
-    V.add(position_est, inputs=['imu/acl_x', 'imu/acl_y', 'imu/gyr_z', 'pos/x', 'pos/y'], outputs=['est_pos/x', 'est_pos/y'], threaded=False)
-    ##
+    V.add(position_est, inputs=['imu/acl_x', 'imu/acl_y', 'imu/gyr_x', 'pos/x', 'pos/y'], outputs=['est_pos/x', 'est_pos/y', 'heading'], threaded=False)
+    ### END DSC190 ###
 
     # This will use path and current position to output cross track error
     cte = CTE(look_ahead=cfg.PATH_LOOK_AHEAD, look_behind=cfg.PATH_LOOK_BEHIND, num_pts=cfg.PATH_SEARCH_LENGTH)
     V.add(cte, inputs=['path', 'pos/x', 'pos/y', 'cte/closest_pt'], outputs=['cte/error', 'cte/closest_pt'], run_condition='run_pilot')
 
     # This will use the cross track error and PID constants to try to steer back towards the path.
-    pid = PIDController(p=cfg.PID_P, i=cfg.PID_I, d=cfg.PID_D)
-    pilot = PID_Pilot(pid, cfg.PID_THROTTLE, cfg.USE_CONSTANT_THROTTLE, min_throttle=cfg.PID_THROTTLE)
-    V.add(pilot, inputs=['cte/error', 'throttles', 'cte/closest_pt'], outputs=['pilot/steering', 'pilot/throttle'], run_condition="run_pilot")
+    #pid = PIDController(p=cfg.PID_P, i=cfg.PID_I, d=cfg.PID_D)
+    #pilot = PID_Pilot(pid, cfg.PID_THROTTLE, cfg.USE_CONSTANT_THROTTLE, min_throttle=cfg.PID_THROTTLE)
+    #V.add(pilot, inputs=['cte/error', 'throttles', 'cte/closest_pt'], outputs=['pilot/steering', 'pilot/throttle'], run_condition="run_pilot")
+    from path import PurePursuit_Pilot
+    pilot = PurePursuit_Pilot(lookahead_distance=.5)
+    V.add(pilot, inputs=['path', 'pos_x', 'pos_y', 'heading', 'throttles', 'cte/closest_pt'], outputs=['pilot/steering', 'pilot/throttle'], run_condition='run_pilot')
 
     def dec_pid_d():
         pid.Kd -= cfg.PID_D_DELTA
